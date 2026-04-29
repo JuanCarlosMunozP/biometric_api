@@ -5,6 +5,7 @@ Las rutas de la API se versionan bajo /api/v1/. Cada app de dominio
 registra sus rutas en `api/v1/urls.py`.
 """
 from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import (
@@ -31,5 +32,9 @@ urlpatterns = [
     ),
 ]
 
-if settings.DEBUG and "debug_toolbar" in settings.INSTALLED_APPS:
-    urlpatterns += [path("__debug__/", include("debug_toolbar.urls"))]
+if settings.DEBUG:
+    # Servir archivos subidos por FileSystemStorage durante el desarrollo.
+    # En prod se usa S3 o un reverse-proxy que sirve /media directamente.
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    if "debug_toolbar" in settings.INSTALLED_APPS:
+        urlpatterns += [path("__debug__/", include("debug_toolbar.urls"))]
