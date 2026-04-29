@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b10m37c0-0000-4000-8000-000000000001",
     "name": "Biometric API",
-    "description": "Colección oficial del Biometric API (gestión de equipos biomédicos).\n\nIncluye:\n- Auth (JWT)\n- Users (CRUD + me + set_password) — fase 02.5\n- Branches (CRUD) — fase 02\n\nCredencial de superusuario por defecto (creada manualmente):\n- username: admin\n- password: AdminPass123!\n\nFlujo recomendado: 1) `Auth › Login` para poblar `access_token`. 2) `Users › Create` para poblar `user_id`. 3) probar el resto.",
+    "description": "Colección oficial del Biometric API (gestión de equipos biomédicos).\n\nIncluye:\n- Auth (JWT)\n- Users (CRUD + me + set_password) — fase 02.5\n- Branches (CRUD) — fase 02\n- Equipment (CRUD + by-asset-tag + regenerate-qr) — fase 03\n\nCredencial de superusuario por defecto (creada manualmente):\n- username: admin\n- password: AdminPass123!\n\nFlujo recomendado: 1) `Auth › Login` para poblar `access_token`. 2) `Branches › Create` para poblar `branch_id`. 3) `Equipment › Create` para poblar `equipment_id`. 4) probar el resto.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -10,7 +10,9 @@
     { "key": "access_token",  "value": "",                       "type": "string" },
     { "key": "refresh_token", "value": "",                       "type": "string" },
     { "key": "user_id",       "value": "",                       "type": "string" },
-    { "key": "branch_id",     "value": "",                       "type": "string" }
+    { "key": "branch_id",     "value": "",                       "type": "string" },
+    { "key": "equipment_id",  "value": "",                       "type": "string" },
+    { "key": "asset_tag_sample", "value": "EQ-0001",             "type": "string" }
   ],
   "auth": {
     "type": "bearer",
@@ -356,6 +358,150 @@
               "host": ["{{base_url}}"],
               "path": ["api", "v1", "branches", "{{branch_id}}", ""]
             }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Equipment",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/equipment/?ordering=name",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "equipment", ""],
+              "query": [
+                { "key": "ordering",             "value": "name" },
+                { "key": "branch",               "value": "{{branch_id}}", "disabled": true },
+                { "key": "status",               "value": "ACTIVE",        "disabled": true },
+                { "key": "brand",                "value": "philips",       "disabled": true },
+                { "key": "purchase_date_after",  "value": "2024-01-01",    "disabled": true },
+                { "key": "purchase_date_before", "value": "2024-12-31",    "disabled": true },
+                { "key": "search",               "value": "MX450",         "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Monitor de signos vitales\",\n  \"asset_tag\": \"{{asset_tag_sample}}\",\n  \"brand\": \"Philips\",\n  \"model\": \"MX450\",\n  \"branch\": {{branch_id}},\n  \"location\": \"UCI - cama 3\",\n  \"purchase_date\": \"2024-08-15\",\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/equipment/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "equipment", ""]
+            },
+            "description": "Genera el QR automáticamente. La response trae `qr_code_url` apuntando al PNG."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "if (body.id) {",
+                  "  pm.collectionVariables.set('equipment_id', body.id);",
+                  "  if (pm.environment && pm.environment.name) pm.environment.set('equipment_id', body.id);",
+                  "}",
+                  "pm.test('qr_code_url presente', () => pm.expect(body.qr_code_url).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Retrieve",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/equipment/{{equipment_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "equipment", "{{equipment_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "By asset tag",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/equipment/by-asset-tag/{{asset_tag_sample}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "equipment", "by-asset-tag", "{{asset_tag_sample}}", ""]
+            },
+            "description": "Resolución case-insensitive por `asset_tag`."
+          }
+        },
+        {
+          "name": "Regenerate QR",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/equipment/{{equipment_id}}/regenerate-qr/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "equipment", "{{equipment_id}}", "regenerate-qr", ""]
+            },
+            "description": "Reemplaza el archivo del QR. Útil tras cambiar `FRONTEND_BASE_URL`."
+          }
+        },
+        {
+          "name": "Update (PATCH status)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_MAINTENANCE\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/equipment/{{equipment_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "equipment", "{{equipment_id}}", ""]
+            },
+            "description": "Estados válidos: `ACTIVE`, `INACTIVE`, `IN_MAINTENANCE`, `IN_REPAIR`."
+          }
+        },
+        {
+          "name": "Update (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Monitor de signos vitales\",\n  \"asset_tag\": \"{{asset_tag_sample}}\",\n  \"brand\": \"Philips\",\n  \"model\": \"MX450\",\n  \"branch\": {{branch_id}},\n  \"location\": \"UCI - cama 3\",\n  \"purchase_date\": \"2024-08-15\",\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/equipment/{{equipment_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "equipment", "{{equipment_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/equipment/{{equipment_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "equipment", "{{equipment_id}}", ""]
+            },
+            "description": "Borra el equipo y elimina el archivo del QR del storage. La sede no se puede borrar mientras tenga equipos (PROTECT)."
           }
         }
       ]
