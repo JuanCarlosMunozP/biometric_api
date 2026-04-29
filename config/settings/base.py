@@ -62,9 +62,9 @@ LOCAL_APPS: list[str] = [
     "apps.users",
     "apps.branches",
     "apps.equipment",
+    "apps.maintenance",
     # Las apps de dominio se irán agregando incrementalmente:
     # "apps.core",
-    # "apps.maintenance",
     # "apps.failures",
 ]
 

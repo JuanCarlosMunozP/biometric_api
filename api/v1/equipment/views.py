@@ -44,3 +44,26 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         equipment.refresh_from_db()
         serializer = self.get_serializer(equipment)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get"], url_path="history")
+    def history(self, request, pk: int = None):
+        """Historial paginado de mantenimientos del equipo."""
+        # Imports locales para evitar cualquier riesgo de import circular:
+        # apps.maintenance ya importa apps.equipment.models en su FK.
+        from api.v1.maintenance.serializers import MaintenanceRecordSerializer
+        from apps.maintenance.models import MaintenanceRecord
+
+        equipment = self.get_object()
+        queryset = MaintenanceRecord.objects.filter(equipment=equipment).order_by(
+            "-date", "-created_at"
+        )
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = MaintenanceRecordSerializer(
+                page, many=True, context={"request": request}
+            )
+            return self.get_paginated_response(serializer.data)
+        serializer = MaintenanceRecordSerializer(
+            queryset, many=True, context={"request": request}
+        )
+        return Response(serializer.data)

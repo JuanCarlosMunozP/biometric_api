@@ -22,4 +22,8 @@ urlpatterns = [
     path("users/", include(("api.v1.users.urls", "users"), namespace="users")),
     path("branches/", include(("api.v1.branches.urls", "branches"), namespace="branches")),
     path("equipment/", include(("api.v1.equipment.urls", "equipment"), namespace="equipment")),
+    path(
+        "maintenance/",
+        include(("api.v1.maintenance.urls", "maintenance"), namespace="maintenance"),
+    ),
 ]
