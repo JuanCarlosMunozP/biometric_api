@@ -4,6 +4,7 @@ URLConf raíz del proyecto.
 Las rutas de la API se versionan bajo /api/v1/. Cada app de dominio
 registra sus rutas en `api/v1/urls.py`.
 """
+from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import (
@@ -29,3 +30,6 @@ urlpatterns = [
         name="redoc",
     ),
 ]
+
+if settings.DEBUG and "debug_toolbar" in settings.INSTALLED_APPS:
+    urlpatterns += [path("__debug__/", include("debug_toolbar.urls"))]
