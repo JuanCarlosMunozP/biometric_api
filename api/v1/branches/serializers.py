@@ -19,6 +19,10 @@ class BranchSerializer(serializers.ModelSerializer):
             "updated_at",
         )
         read_only_fields = ("id", "created_at", "updated_at")
+        extra_kwargs = {
+            # El mensaje de unicidad lo controla validate_name (en español).
+            "name": {"validators": []},
+        }
 
     def validate_name(self, value: str) -> str:
         normalized = " ".join(value.split()).strip()
