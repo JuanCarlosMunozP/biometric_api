@@ -59,6 +59,7 @@ THIRD_PARTY_APPS = [
 ]
 
 LOCAL_APPS: list[str] = [
+    "apps.users",
     "apps.branches",
     # Las apps de dominio se irán agregando incrementalmente:
     # "apps.core",
@@ -66,6 +67,8 @@ LOCAL_APPS: list[str] = [
     # "apps.maintenance",
     # "apps.failures",
 ]
+
+AUTH_USER_MODEL = "users.User"
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 

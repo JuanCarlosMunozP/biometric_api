@@ -19,5 +19,6 @@ urlpatterns = [
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
     path("auth/token/verify/", TokenVerifyView.as_view(), name="token-verify"),
     # Domain routes
+    path("users/", include(("api.v1.users.urls", "users"), namespace="users")),
     path("branches/", include(("api.v1.branches.urls", "branches"), namespace="branches")),
 ]

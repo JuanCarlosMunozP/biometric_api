@@ -1,0 +1,364 @@
+{
+  "info": {
+    "_postman_id": "b10m37c0-0000-4000-8000-000000000001",
+    "name": "Biometric API",
+    "description": "Colección oficial del Biometric API (gestión de equipos biomédicos).\n\nIncluye:\n- Auth (JWT)\n- Users (CRUD + me + set_password) — fase 02.5\n- Branches (CRUD) — fase 02\n\nCredencial de superusuario por defecto (creada manualmente):\n- username: admin\n- password: AdminPass123!\n\nFlujo recomendado: 1) `Auth › Login` para poblar `access_token`. 2) `Users › Create` para poblar `user_id`. 3) probar el resto.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",      "value": "http://localhost:8000", "type": "string" },
+    { "key": "access_token",  "value": "",                       "type": "string" },
+    { "key": "refresh_token", "value": "",                       "type": "string" },
+    { "key": "user_id",       "value": "",                       "type": "string" },
+    { "key": "branch_id",     "value": "",                       "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (token obtain)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"AdminPass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/token/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "token", ""]
+            },
+            "description": "Devuelve `access` y `refresh`. El test guarda ambos en variables de colección."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "const setAll = (key, value) => {",
+                  "  if (!value) return;",
+                  "  pm.collectionVariables.set(key, value);",
+                  "  if (pm.environment && pm.environment.name) pm.environment.set(key, value);",
+                  "  pm.globals.set(key, value);",
+                  "};",
+                  "setAll('access_token', body.access);",
+                  "setAll('refresh_token', body.refresh);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/token/refresh/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "token", "refresh", ""]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.access) {",
+                  "  pm.collectionVariables.set('access_token', body.access);",
+                  "  if (pm.environment && pm.environment.name) pm.environment.set('access_token', body.access);",
+                  "  pm.globals.set('access_token', body.access);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{access_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/token/verify/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "token", "verify", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Me (current profile)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "me", ""]
+            }
+          }
+        },
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/?ordering=username",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", ""],
+              "query": [
+                { "key": "ordering", "value": "username" },
+                { "key": "role",      "value": "ingeniero", "disabled": true },
+                { "key": "is_active", "value": "true",      "disabled": true },
+                { "key": "search",    "value": "juan",      "disabled": true }
+              ]
+            },
+            "description": "Solo `superadmin` y `admin` pueden listar."
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"ingeniero1\",\n  \"email\": \"ingeniero1@biometric.test\",\n  \"first_name\": \"María\",\n  \"last_name\": \"Gómez\",\n  \"role\": \"ingeniero\",\n  \"phone\": \"+57 300 555 1111\",\n  \"password\": \"IngePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", ""]
+            },
+            "description": "Roles válidos: `superadmin`, `admin`, `coordinador`, `ingeniero`, `tecnico`. Solo un `superadmin` puede crear otro `superadmin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "if (body.id) pm.collectionVariables.set('user_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Retrieve",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Update (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+57 300 999 0000\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Update (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"ingeniero1\",\n  \"email\": \"ingeniero1@biometric.test\",\n  \"first_name\": \"María Lucía\",\n  \"last_name\": \"Gómez\",\n  \"role\": \"ingeniero\",\n  \"phone\": \"+57 300 999 0000\",\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Set password (self)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"IngePass123!\",\n  \"new_password\": \"IngeNueva456!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}/set_password/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}", "set_password", ""]
+            },
+            "description": "El propio usuario debe enviar `current_password` y `new_password`."
+          }
+        },
+        {
+          "name": "Set password (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_password\": \"AdminReseteo789!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}/set_password/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}", "set_password", ""]
+            },
+            "description": "Un superadmin/admin puede cambiar la contraseña de otro sin enviar `current_password`."
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}", ""]
+            },
+            "description": "No se puede eliminar la propia cuenta (409)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Branches",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/branches/?ordering=name",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "branches", ""],
+              "query": [
+                { "key": "ordering",  "value": "name" },
+                { "key": "city",      "value": "Bogota", "disabled": true },
+                { "key": "is_active", "value": "true",   "disabled": true },
+                { "key": "search",    "value": "Norte",  "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sede Norte\",\n  \"address\": \"Calle 100 #15-20\",\n  \"city\": \"Bogota\",\n  \"phone\": \"+57 300 555 1234\",\n  \"email\": \"norte@clinic.test\",\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/branches/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "branches", ""]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "if (body.id) pm.collectionVariables.set('branch_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Retrieve",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/branches/{{branch_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "branches", "{{branch_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Update (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/branches/{{branch_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "branches", "{{branch_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/branches/{{branch_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "branches", "{{branch_id}}", ""]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
