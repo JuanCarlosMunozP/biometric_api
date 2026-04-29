@@ -59,9 +59,9 @@ THIRD_PARTY_APPS = [
 ]
 
 LOCAL_APPS: list[str] = [
+    "apps.branches",
     # Las apps de dominio se irán agregando incrementalmente:
     # "apps.core",
-    # "apps.sites",
     # "apps.equipment",
     # "apps.maintenance",
     # "apps.failures",
