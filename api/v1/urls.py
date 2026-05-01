@@ -30,4 +30,8 @@ urlpatterns = [
         "scheduling/",
         include(("api.v1.scheduling.urls", "scheduling"), namespace="scheduling"),
     ),
+    path(
+        "failures/",
+        include(("api.v1.failures.urls", "failures"), namespace="failures"),
+    ),
 ]

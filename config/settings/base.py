@@ -64,9 +64,9 @@ LOCAL_APPS: list[str] = [
     "apps.equipment",
     "apps.maintenance",
     "apps.scheduling",
+    "apps.failures",
     # Las apps de dominio se irán agregando incrementalmente:
     # "apps.core",
-    # "apps.failures",
 ]
 
 AUTH_USER_MODEL = "users.User"

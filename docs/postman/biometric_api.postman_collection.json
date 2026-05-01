@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b10m37c0-0000-4000-8000-000000000001",
     "name": "Biometric API",
-    "description": "Colección oficial del Biometric API (gestión de equipos biomédicos).\n\nIncluye:\n- Auth (JWT)\n- Users (CRUD + me + set_password) — fase 02.5\n- Branches (CRUD) — fase 02\n- Equipment (CRUD + by-asset-tag + regenerate-qr + history) — fase 03\n- Maintenance (CRUD historial + upload PDF) — fase 04\n- Scheduling (CRUD agendamientos + complete + notify por email async) — fase 05\n\nCredencial de superusuario por defecto (creada manualmente):\n- username: admin\n- password: AdminPass123!\n\nFlujo recomendado: 1) `Auth › Login` para poblar `access_token`. 2) `Branches › Create` para poblar `branch_id`. 3) `Equipment › Create` para poblar `equipment_id`. 4) `Maintenance › Create` para poblar `maintenance_record_id`. 5) `Scheduling › Create` para poblar `schedule_id`. 6) probar el resto.",
+    "description": "Colección oficial del Biometric API (gestión de equipos biomédicos).\n\nIncluye:\n- Auth (JWT)\n- Users (CRUD + me + set_password) — fase 02.5\n- Branches (CRUD) — fase 02\n- Equipment (CRUD + by-asset-tag + regenerate-qr + history) — fase 03\n- Maintenance (CRUD historial + upload PDF) — fase 04\n- Scheduling (CRUD agendamientos + complete + notify por email async) — fase 05\n- Failures (CRUD reportes de falla + resolve) — fase 06\n\nCredencial de superusuario por defecto (creada manualmente):\n- username: admin\n- password: AdminPass123!\n\nFlujo recomendado: 1) `Auth › Login` para poblar `access_token`. 2) `Branches › Create` para poblar `branch_id`. 3) `Equipment › Create` para poblar `equipment_id`. 4) `Maintenance › Create` para poblar `maintenance_record_id`. 5) `Scheduling › Create` para poblar `schedule_id`. 6) `Failures › Create` para poblar `failure_id`. 7) probar el resto.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -14,7 +14,8 @@
     { "key": "equipment_id",  "value": "",                       "type": "string" },
     { "key": "asset_tag_sample", "value": "EQ-0001",             "type": "string" },
     { "key": "maintenance_record_id", "value": "",               "type": "string" },
-    { "key": "schedule_id",   "value": "",                       "type": "string" }
+    { "key": "schedule_id",   "value": "",                       "type": "string" },
+    { "key": "failure_id",    "value": "",                       "type": "string" }
   ],
   "auth": {
     "type": "bearer",
@@ -882,6 +883,224 @@
               "path": ["api", "v1", "scheduling", "maintenances", "{{schedule_id}}", ""]
             },
             "description": "Cancelar = borrar. No hay flag `is_cancelled` en esta fase."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Failures",
+      "description": "Reportes de fallas de equipos biomédicos (fase 06). Severidades válidas: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`. La consistencia entre `resolved` y `resolved_at` se valida tanto a nivel BD (CheckConstraint) como en el serializer. El action `resolve/` es idempotente.",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/failures/?ordering=-reported_at",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "failures", ""],
+              "query": [
+                { "key": "ordering",            "value": "-reported_at" },
+                { "key": "equipment",           "value": "{{equipment_id}}", "disabled": true },
+                { "key": "branch",              "value": "{{branch_id}}",    "disabled": true },
+                { "key": "severity",            "value": "CRITICAL",         "disabled": true },
+                { "key": "resolved",            "value": "false",            "disabled": true },
+                { "key": "reported_at_after",   "value": "2026-01-01T00:00:00Z", "disabled": true },
+                { "key": "reported_at_before",  "value": "2026-12-31T23:59:59Z", "disabled": true },
+                { "key": "search",              "value": "bateria",          "disabled": true }
+              ]
+            },
+            "description": "Filtros: `equipment`, `branch` (vía `equipment__branch_id`), `severity` (iexact), `resolved`, `reported_at_after`, `reported_at_before`. Search: `description`, `resolution_notes`, `equipment__asset_tag`. Ordering: `reported_at`, `severity`, `resolved_at` (default `-reported_at`)."
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipment\": {{equipment_id}},\n  \"description\": \"El monitor presenta lecturas erráticas de SpO2 al moverse el sensor.\",\n  \"severity\": \"HIGH\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/failures/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "failures", ""]
+            },
+            "description": "Crea un reporte de falla. `reported_at` es opcional (default = ahora). `resolved` arranca en `false`. La descripción no puede estar vacía. `reported_at` no puede ser futura."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "if (body.id) {",
+                  "  pm.collectionVariables.set('failure_id', body.id);",
+                  "  if (pm.environment && pm.environment.name) pm.environment.set('failure_id', body.id);",
+                  "}",
+                  "pm.test('resolved false al crear', () => pm.expect(body.resolved).to.eql(false));",
+                  "pm.test('resolved_at null al crear', () => pm.expect(body.resolved_at).to.be.null);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — error: descripción vacía",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipment\": {{equipment_id}},\n  \"description\": \"   \",\n  \"severity\": \"LOW\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/failures/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "failures", ""]
+            },
+            "description": "Devuelve 400 con `{\"description\": [\"La descripción es obligatoria.\"]}`."
+          }
+        },
+        {
+          "name": "Create — error: reported_at futura",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipment\": {{equipment_id}},\n  \"description\": \"Falla intermitente\",\n  \"severity\": \"MEDIUM\",\n  \"reported_at\": \"2099-01-01T00:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/failures/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "failures", ""]
+            },
+            "description": "Devuelve 400 con `{\"reported_at\": [\"La fecha de reporte no puede ser futura.\"]}`."
+          }
+        },
+        {
+          "name": "Retrieve",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/failures/{{failure_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "failures", "{{failure_id}}", ""]
+            },
+            "description": "Trae también `equipment_asset_tag` y `branch_name` (read-only) para facilitar la presentación."
+          }
+        },
+        {
+          "name": "Update (PATCH severity)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"severity\": \"CRITICAL\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/failures/{{failure_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "failures", "{{failure_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Update (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipment\": {{equipment_id}},\n  \"description\": \"El monitor presenta lecturas erráticas de SpO2 (revisado).\",\n  \"severity\": \"HIGH\",\n  \"resolved\": false,\n  \"resolution_notes\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/failures/{{failure_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "failures", "{{failure_id}}", ""]
+            },
+            "description": "PUT requiere todos los campos requeridos. `resolved_at` se omite porque `resolved=false`."
+          }
+        },
+        {
+          "name": "Update — error: resolved_at sin resolved",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolved\": false,\n  \"resolved_at\": \"2026-05-01T10:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/failures/{{failure_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "failures", "{{failure_id}}", ""]
+            },
+            "description": "Devuelve 400 con `{\"resolved_at\": [\"No se puede definir 'resuelta el' sin marcar la falla como resuelta.\"]}`."
+          }
+        },
+        {
+          "name": "Resolve (marcar resuelta)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution_notes\": \"Se reemplazó el sensor SpO2 y se recalibró el monitor.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/failures/{{failure_id}}/resolve/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "failures", "{{failure_id}}", "resolve", ""]
+            },
+            "description": "Marca la falla como `resolved=true` y setea `resolved_at = now()`. Body opcional; si se omite, no agrega notas. Idempotente: una segunda llamada preserva `resolved_at` original."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('resolved true', () => pm.expect(body.resolved).to.eql(true));",
+                  "pm.test('resolved_at presente', () => pm.expect(body.resolved_at).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resolve (sin body)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/failures/{{failure_id}}/resolve/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "failures", "{{failure_id}}", "resolve", ""]
+            },
+            "description": "Resolver sin notas. Si la falla ya estaba resuelta, `resolved_at` se preserva (idempotencia)."
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/failures/{{failure_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "failures", "{{failure_id}}", ""]
+            },
+            "description": "Elimina el reporte. El equipo no se puede borrar si tiene reportes asociados (PROTECT)."
           }
         }
       ]
