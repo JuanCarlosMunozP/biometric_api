@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b10m37c0-0000-4000-8000-000000000001",
     "name": "Biometric API",
-    "description": "Colección oficial del Biometric API (gestión de equipos biomédicos).\n\nIncluye:\n- Auth (JWT)\n- Users (CRUD + me + set_password) — fase 02.5\n- Branches (CRUD) — fase 02\n- Equipment (CRUD + by-asset-tag + regenerate-qr + history) — fase 03\n- Maintenance (CRUD historial + upload PDF) — fase 04\n\nCredencial de superusuario por defecto (creada manualmente):\n- username: admin\n- password: AdminPass123!\n\nFlujo recomendado: 1) `Auth › Login` para poblar `access_token`. 2) `Branches › Create` para poblar `branch_id`. 3) `Equipment › Create` para poblar `equipment_id`. 4) `Maintenance › Create` para poblar `maintenance_record_id`. 5) probar el resto.",
+    "description": "Colección oficial del Biometric API (gestión de equipos biomédicos).\n\nIncluye:\n- Auth (JWT)\n- Users (CRUD + me + set_password) — fase 02.5\n- Branches (CRUD) — fase 02\n- Equipment (CRUD + by-asset-tag + regenerate-qr + history) — fase 03\n- Maintenance (CRUD historial + upload PDF) — fase 04\n- Scheduling (CRUD agendamientos + complete + notify por email async) — fase 05\n\nCredencial de superusuario por defecto (creada manualmente):\n- username: admin\n- password: AdminPass123!\n\nFlujo recomendado: 1) `Auth › Login` para poblar `access_token`. 2) `Branches › Create` para poblar `branch_id`. 3) `Equipment › Create` para poblar `equipment_id`. 4) `Maintenance › Create` para poblar `maintenance_record_id`. 5) `Scheduling › Create` para poblar `schedule_id`. 6) probar el resto.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -13,7 +13,8 @@
     { "key": "branch_id",     "value": "",                       "type": "string" },
     { "key": "equipment_id",  "value": "",                       "type": "string" },
     { "key": "asset_tag_sample", "value": "EQ-0001",             "type": "string" },
-    { "key": "maintenance_record_id", "value": "",               "type": "string" }
+    { "key": "maintenance_record_id", "value": "",               "type": "string" },
+    { "key": "schedule_id",   "value": "",                       "type": "string" }
   ],
   "auth": {
     "type": "bearer",
@@ -693,6 +694,194 @@
               "path": ["api", "v1", "maintenance", "records", "{{maintenance_record_id}}", ""]
             },
             "description": "Borra el registro. El signal `pre_delete` elimina el PDF asociado del storage. El equipo no se puede borrar si tiene registros (PROTECT)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scheduling",
+      "description": "Programación de mantenimientos futuros (fase 05). Al crear se dispara una tarea Celery (`send_schedule_notification`) que envía un correo a `MAINTENANCE_NOTIFICATION_EMAILS` y al `branch.email` si está definido. Tipos válidos: `PREVENTIVE`, `REPAIR`. En dev con `EMAIL_BACKEND=console` el correo aparece en `docker compose logs web|celery_worker`.",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/scheduling/maintenances/?ordering=scheduled_date",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "scheduling", "maintenances", ""],
+              "query": [
+                { "key": "ordering",              "value": "scheduled_date" },
+                { "key": "equipment",             "value": "{{equipment_id}}", "disabled": true },
+                { "key": "branch",                "value": "{{branch_id}}",    "disabled": true },
+                { "key": "kind",                  "value": "PREVENTIVE",       "disabled": true },
+                { "key": "is_completed",          "value": "false",            "disabled": true },
+                { "key": "scheduled_date_after",  "value": "2026-05-01",       "disabled": true },
+                { "key": "scheduled_date_before", "value": "2026-12-31",       "disabled": true },
+                { "key": "search",                "value": "calibracion",      "disabled": true }
+              ]
+            },
+            "description": "Filtros: `equipment`, `branch`, `kind`, `is_completed`, `scheduled_date_after`, `scheduled_date_before`. Search: `notes`, `equipment__asset_tag`, `equipment__name`. Ordering: `scheduled_date`, `created_at` (default `scheduled_date`)."
+          }
+        },
+        {
+          "name": "Create (dispara email)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipment\": {{equipment_id}},\n  \"kind\": \"PREVENTIVE\",\n  \"scheduled_date\": \"2026-06-01\",\n  \"notes\": \"Calibración trimestral según ficha técnica.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/scheduling/maintenances/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "scheduling", "maintenances", ""]
+            },
+            "description": "Crea un agendamiento y dispara la tarea Celery de envío de correo en `post_save`. La fecha no puede ser pasada al crear. Si el equipo está `INACTIVE` falla con 400. Con `CELERY_TASK_ALWAYS_EAGER=True` (dev) la tarea se ejecuta síncrona y `notified_at` queda poblado en la respuesta. Sin eager, `notified_at` puede ser `null` justo al crear."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "if (body.id) {",
+                  "  pm.collectionVariables.set('schedule_id', body.id);",
+                  "  if (pm.environment && pm.environment.name) pm.environment.set('schedule_id', body.id);",
+                  "}",
+                  "pm.test('is_completed false al crear', () => pm.expect(body.is_completed).to.eql(false));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — error: fecha pasada",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipment\": {{equipment_id}},\n  \"kind\": \"PREVENTIVE\",\n  \"scheduled_date\": \"2020-01-01\",\n  \"notes\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/scheduling/maintenances/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "scheduling", "maintenances", ""]
+            },
+            "description": "Devuelve 400 con `{\"scheduled_date\": [\"La fecha programada no puede ser pasada.\"]}`."
+          }
+        },
+        {
+          "name": "Retrieve",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/scheduling/maintenances/{{schedule_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "scheduling", "maintenances", "{{schedule_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Update (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Calibración + revisión sensores (actualizado).\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/scheduling/maintenances/{{schedule_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "scheduling", "maintenances", "{{schedule_id}}", ""]
+            },
+            "description": "En update parcial la validación de `scheduled_date` no exige fecha futura (permite ajustar al marcar `is_completed`)."
+          }
+        },
+        {
+          "name": "Update (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipment\": {{equipment_id}},\n  \"kind\": \"REPAIR\",\n  \"scheduled_date\": \"2026-07-15\",\n  \"notes\": \"Reparación programada del módulo de presión.\",\n  \"is_completed\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/scheduling/maintenances/{{schedule_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "scheduling", "maintenances", "{{schedule_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Complete (marcar cumplido)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/scheduling/maintenances/{{schedule_id}}/complete/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "scheduling", "maintenances", "{{schedule_id}}", "complete", ""]
+            },
+            "description": "Marca el agendamiento como `is_completed=true`. Devuelve la representación completa actualizada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('is_completed true', () => pm.expect(pm.response.json().is_completed).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Notify (re-encolar email)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/scheduling/maintenances/{{schedule_id}}/notify/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "scheduling", "maintenances", "{{schedule_id}}", "notify", ""]
+            },
+            "description": "Vuelve a encolar la tarea Celery `send_schedule_notification`. Útil si el primer envío falló (SMTP caído, etc.). Respuesta: `{\"detail\": \"notification_queued\"}`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('detail notification_queued', () => pm.expect(pm.response.json().detail).to.eql('notification_queued'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/scheduling/maintenances/{{schedule_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "scheduling", "maintenances", "{{schedule_id}}", ""]
+            },
+            "description": "Cancelar = borrar. No hay flag `is_cancelled` en esta fase."
           }
         }
       ]

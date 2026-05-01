@@ -26,4 +26,8 @@ urlpatterns = [
         "maintenance/",
         include(("api.v1.maintenance.urls", "maintenance"), namespace="maintenance"),
     ),
+    path(
+        "scheduling/",
+        include(("api.v1.scheduling.urls", "scheduling"), namespace="scheduling"),
+    ),
 ]

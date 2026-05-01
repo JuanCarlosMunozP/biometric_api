@@ -63,6 +63,7 @@ LOCAL_APPS: list[str] = [
     "apps.branches",
     "apps.equipment",
     "apps.maintenance",
+    "apps.scheduling",
     # Las apps de dominio se irán agregando incrementalmente:
     # "apps.core",
     # "apps.failures",
@@ -254,3 +255,10 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+
+# ---------------------------------------------------------------------------
+# Notificaciones de mantenimiento
+# ---------------------------------------------------------------------------
+MAINTENANCE_NOTIFICATION_EMAILS = env.list(
+    "MAINTENANCE_NOTIFICATION_EMAILS", default=[]
+)

@@ -50,25 +50,24 @@ services:
         condition: service_healthy
     command: python manage.py runserver 0.0.0.0:8000
 
-  # Worker de Celery (descomentar cuando entren las tareas async)
-  # celery_worker:
-  #   build:
-  #     context: .
-  #     dockerfile: docker/Dockerfile
-  #     args:
-  #       REQUIREMENTS: dev
-  #   container_name: biometric_celery_worker
-  #   restart: unless-stopped
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - .:/app
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #   command: celery -A config worker -l info
+  celery_worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        REQUIREMENTS: dev
+    container_name: biometric_celery_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A config worker -l info
 
 volumes:
   postgres_data:
